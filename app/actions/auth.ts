@@ -63,6 +63,8 @@ export async function signUp(_previous: FormState, form: FormData): Promise<Form
     .run(`pending-${randomBytes(8).toString("hex")}`, values.full_name, values.email, passwordHash, values.job_title, values.department, values.office);
   const id = Number(result.lastInsertRowid);
   database.prepare("UPDATE users SET employee_id = ? WHERE id = ?").run(`NV-${String(id).padStart(4, "0")}`, id);
+  // The first account on a new portal becomes the admin, so someone can manage roles and teams.
+  database.prepare("UPDATE users SET role = 'admin' WHERE id = ? AND NOT EXISTS (SELECT 1 FROM users WHERE role = 'admin')").run(id);
 
   await startSession(id);
   redirect("/pims?welcome=1");
