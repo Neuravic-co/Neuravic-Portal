@@ -1,4 +1,4 @@
-import { CalendarDays, Headset, IdCard, LayoutDashboard, Wrench, type LucideIcon } from "lucide-react";
+import { CalendarDays, Headset, IdCard, LayoutDashboard, UsersRound, Wrench, type LucideIcon } from "lucide-react";
 
 export type NavItem = {
   href: string;
@@ -14,13 +14,19 @@ export const HOME: NavItem = {
   icon: LayoutDashboard,
 };
 
-/** The four main areas of the portal, in the order they appear in the navigation. */
+/** The main areas of the portal, in the order they appear in the navigation. */
 export const MODULES: NavItem[] = [
   {
     href: "/pims",
     label: "PIMS",
     description: "Your personal information: profile, contact details and account.",
     icon: IdCard,
+  },
+  {
+    href: "/team",
+    label: "Team Manager",
+    description: "Teams, leads and members, plus a directory of everyone in the portal.",
+    icon: UsersRound,
   },
   {
     href: "/tools",

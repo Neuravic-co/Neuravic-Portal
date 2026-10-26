@@ -22,6 +22,7 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
           </h2>
           <ul className="auth__points">
             <li>Your profile and details in PIMS</li>
+            <li>Teams and people in Team Manager</li>
             <li>Approved AI and software tools</li>
             <li>Holidays for the Dubai and Cairo offices</li>
             <li>IT tools for quick fixes</li>

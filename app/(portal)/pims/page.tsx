@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
-import { Briefcase, Building2, CalendarClock, Hash, Mail, MapPin, Phone, Sparkles, UserRound } from "lucide-react";
+import Link from "next/link";
+import { Briefcase, Building2, CalendarClock, Hash, Mail, MapPin, Phone, ShieldCheck, Sparkles, UserRound } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { requireUser } from "@/lib/auth";
 import { officeLabel } from "@/lib/profile";
 import { formatDate } from "@/lib/holidays";
+import { asRole, ROLE_TONE, roleLabel } from "@/lib/roles";
+import { teamsFor } from "@/lib/team";
 import { PasswordForm, ProfileForm } from "./profile-forms";
 
 export const metadata: Metadata = { title: "PIMS" };
@@ -16,6 +19,7 @@ function formatTimestamp(value: string | null) {
 export default async function PimsPage({ searchParams }: { searchParams: Promise<{ welcome?: string }> }) {
   const user = await requireUser();
   const { welcome } = await searchParams;
+  const teams = teamsFor(user.id);
 
   const optional = [user.phone, user.start_date, user.bio];
   const complete = Math.round(((5 + optional.filter(Boolean).length) / (5 + optional.length)) * 100);
@@ -32,6 +36,7 @@ export default async function PimsPage({ searchParams }: { searchParams: Promise
     { icon: Phone, label: "Phone", value: user.phone || "Not added" },
     { icon: Briefcase, label: "Job title", value: user.job_title },
     { icon: Building2, label: "Department", value: user.department },
+    { icon: ShieldCheck, label: "Portal role", value: roleLabel(user.role) },
     { icon: MapPin, label: "Office", value: officeLabel(user.office) },
     { icon: CalendarClock, label: "Start date", value: user.start_date ? formatDate(user.start_date) : "Not added" },
     { icon: UserRound, label: "Member since", value: formatDate(user.created_at.slice(0, 10)) },
@@ -64,6 +69,7 @@ export default async function PimsPage({ searchParams }: { searchParams: Promise
           <div className="profile__tags">
             <span className="badge badge--blue">{user.employee_id}</span>
             <span className="badge">{officeLabel(user.office)}</span>
+            <span className={ROLE_TONE[asRole(user.role)]}>{roleLabel(user.role)}</span>
           </div>
         </div>
         <div className="profile__meter">
@@ -136,6 +142,31 @@ export default async function PimsPage({ searchParams }: { searchParams: Promise
                 );
               })}
             </dl>
+          </section>
+
+          <section className="card" aria-labelledby="teams-title">
+            <div className="card__head">
+              <h2 className="card__title" id="teams-title">
+                Your teams
+              </h2>
+              <Link className="btn" href="/team">
+                Team Manager
+              </Link>
+            </div>
+            {teams.length === 0 ? (
+              <p className="empty">You are not on a team yet.</p>
+            ) : (
+              <ul className="list">
+                {teams.map((team) => (
+                  <li className="list__item list__item--center" key={team.id}>
+                    <Link className="list__text list__title" href={`/team/${team.id}`}>
+                      {team.name}
+                    </Link>
+                    {team.is_lead ? <span className="badge badge--green">Lead</span> : <span className="badge">Member</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
 
           {user.bio ? (
