@@ -20,8 +20,16 @@ export type UserRow = {
   last_login_at: string | null;
 };
 
+export type EntityRow = {
+  id: number;
+  name: string;
+  description: string;
+  created_at: string;
+};
+
 export type TeamRow = {
   id: number;
+  entity_id: number | null;
   name: string;
   description: string;
   lead_id: number | null;
@@ -52,8 +60,15 @@ const SCHEMA = `
     expires_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS sessions_user ON sessions(user_id);
+  CREATE TABLE IF NOT EXISTS entities (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    description TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
   CREATE TABLE IF NOT EXISTS teams (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entity_id INTEGER REFERENCES entities(id) ON DELETE SET NULL,
     name TEXT NOT NULL UNIQUE COLLATE NOCASE,
     description TEXT NOT NULL DEFAULT '',
     lead_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
@@ -75,6 +90,11 @@ function migrate(database: DatabaseSync) {
   if (!columns.some((column) => column.name === "role")) {
     database.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'member'");
   }
+  const teamColumns = database.prepare("PRAGMA table_info(teams)").all() as { name: string }[];
+  if (!teamColumns.some((column) => column.name === "entity_id")) {
+    database.exec("ALTER TABLE teams ADD COLUMN entity_id INTEGER REFERENCES entities(id) ON DELETE SET NULL");
+  }
+  database.exec("CREATE INDEX IF NOT EXISTS teams_entity ON teams(entity_id)");
   // Someone has to be able to hand out roles: if there is no admin yet, the earliest account becomes one.
   database.exec(`
     UPDATE users SET role = 'admin'

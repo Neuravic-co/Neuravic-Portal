@@ -71,9 +71,11 @@ export function EditTeam({
   teamId,
   team,
   leads,
+  entities,
 }: {
   teamId: number;
-  team: { name: string; description: string; lead_id: string };
+  team: { name: string; description: string; lead_id: string; entity_id: string };
+  entities: { id: string; label: string }[];
   /** Only admins can change the lead; null hides the field. */
   leads: { id: string; label: string }[] | null;
 }) {
@@ -88,6 +90,17 @@ export function EditTeam({
       <form action={action} className="card__body form" noValidate>
         <FormAlert state={state} />
         <TextField label="Team name" name="name" state={state} defaultValue={team.name} />
+        <div className="field">
+          <label htmlFor="entity_id">Entity</label>
+          <select id="entity_id" name="entity_id" className="input" defaultValue={state.values?.entity_id ?? team.entity_id} key={state.values?.entity_id ?? team.entity_id}>
+            <option value="">No entity</option>
+            {entities.map((entity) => (
+              <option key={entity.id} value={entity.id}>
+                {entity.label}
+              </option>
+            ))}
+          </select>
+        </div>
         {leads ? <SelectField label="Team lead" name="lead_id" state={state} defaultValue={team.lead_id} options={leads} /> : null}
         <TextAreaField label="What the team does" name="description" state={state} defaultValue={team.description} />
         <div className="form__foot">

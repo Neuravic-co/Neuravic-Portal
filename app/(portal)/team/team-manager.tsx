@@ -5,6 +5,7 @@ import { useActionState, useMemo, useState } from "react";
 import { ArrowRight, Crown, Plus, Search, X } from "lucide-react";
 import { createTeam, setRole } from "@/app/actions/team";
 import { AvatarStack } from "@/components/avatar-stack";
+import { Hierarchy } from "./hierarchy";
 import { FormAlert, SelectField, SubmitButton, TextAreaField, TextField } from "@/components/form-fields";
 import type { FormState } from "@/lib/form";
 import { DEPARTMENTS, officeLabel } from "@/lib/profile";
@@ -12,6 +13,7 @@ import { canCreateTeams, initials, ROLE_TONE, ROLES, roleLabel, asRole, type Rol
 
 type Team = {
   id: number;
+  entity_name: string | null;
   name: string;
   description: string;
   lead_id: number | null;
@@ -33,16 +35,33 @@ type Person = {
 };
 
 type Viewer = { id: number; role: Role };
-type Tab = "teams" | "people";
+type Tab = "hierarchy" | "teams" | "people";
+type Entity = { id: number; name: string };
+type HierarchyData = React.ComponentProps<typeof Hierarchy>;
 
-export function TeamManager({ teams, people, viewer }: { teams: Team[]; people: Person[]; viewer: Viewer }) {
-  const [tab, setTab] = useState<Tab>("teams");
+export function TeamManager({
+  teams,
+  people,
+  entities,
+  hierarchy,
+  viewer,
+}: {
+  teams: Team[];
+  people: Person[];
+  entities: Entity[];
+  hierarchy: Omit<HierarchyData, "viewer" | "people">;
+  viewer: Viewer;
+}) {
+  const [tab, setTab] = useState<Tab>("hierarchy");
   const [creating, setCreating] = useState(false);
 
   return (
     <>
       <div className="card filter-bar">
         <div className="tabs tabs--lg" role="tablist" aria-label="Team Manager">
+          <button type="button" role="tab" id="tab-hierarchy" aria-selected={tab === "hierarchy"} aria-controls="panel-hierarchy" onClick={() => setTab("hierarchy")}>
+            Hierarchy
+          </button>
           <button type="button" role="tab" id="tab-teams" aria-selected={tab === "teams"} aria-controls="panel-teams" onClick={() => setTab("teams")}>
             Teams <span className="tabs__count">{teams.length}</span>
           </button>
@@ -58,9 +77,13 @@ export function TeamManager({ teams, people, viewer }: { teams: Team[]; people: 
         ) : null}
       </div>
 
-      {tab === "teams" ? (
+      {tab === "hierarchy" ? (
+        <div id="panel-hierarchy" role="tabpanel" aria-labelledby="tab-hierarchy">
+          <Hierarchy {...hierarchy} people={people} viewer={viewer} />
+        </div>
+      ) : tab === "teams" ? (
         <div id="panel-teams" role="tabpanel" aria-labelledby="tab-teams">
-          {creating ? <NewTeam people={people} viewer={viewer} /> : null}
+          {creating ? <NewTeam people={people} entities={entities} viewer={viewer} /> : null}
           <TeamGrid teams={teams} viewer={viewer} />
         </div>
       ) : (
@@ -72,7 +95,7 @@ export function TeamManager({ teams, people, viewer }: { teams: Team[]; people: 
   );
 }
 
-function NewTeam({ people, viewer }: { people: Person[]; viewer: Viewer }) {
+function NewTeam({ people, entities, viewer }: { people: Person[]; entities: Entity[]; viewer: Viewer }) {
   const [state, action, pending] = useActionState(createTeam, {} as FormState);
   return (
     <section className="card new-team" aria-labelledby="new-team-title">
@@ -100,6 +123,15 @@ function NewTeam({ people, viewer }: { people: Person[]; viewer: Viewer }) {
             />
           ) : null}
         </div>
+        {entities.length > 0 ? (
+          <SelectField
+            label="Entity"
+            name="entity_id"
+            state={state}
+            hint="Where the team sits in the hierarchy."
+            options={entities.map((entity) => ({ id: String(entity.id), label: entity.name }))}
+          />
+        ) : null}
         <TextAreaField label="What the team does" name="description" state={state} hint="Optional. One or two lines." />
         <div className="form__foot">
           <span />
@@ -130,7 +162,7 @@ function TeamGrid({ teams, viewer }: { teams: Team[]; viewer: Viewer }) {
             <div className="team-card__title">
               <h2 className="tool__name">{team.name}</h2>
               <p className="tool__category">
-                {team.member_count} {team.member_count === 1 ? "member" : "members"}
+                {team.entity_name ?? "No entity"} · {team.member_count} {team.member_count === 1 ? "member" : "members"}
               </p>
             </div>
             {team.lead_id === viewer.id ? <span className="badge badge--green">You lead</span> : null}

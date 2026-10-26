@@ -7,7 +7,7 @@ import { requireUser } from "@/lib/auth";
 import { formatDate } from "@/lib/holidays";
 import { officeLabel } from "@/lib/profile";
 import { asRole, canManageTeam, initials, ROLE_TONE, roleLabel } from "@/lib/roles";
-import { getTeam, listPeople } from "@/lib/team";
+import { getTeam, listEntities, listPeople } from "@/lib/team";
 import { AddMembers, DeleteTeam, EditTeam } from "./team-forms";
 
 type Props = { params: Promise<{ id: string }> };
@@ -42,7 +42,7 @@ export default async function TeamDetailPage({ params }: Props) {
 
       <header className="page-head">
         <div>
-          <p className="page-head__eyebrow">Team Manager</p>
+          <p className="page-head__eyebrow">Team Manager · {team.entity_name ?? "No entity"}</p>
           <h1 className="page-head__title">{team.name}</h1>
           <p className="page-head__lead">{team.description || "No description yet."}</p>
         </div>
@@ -107,7 +107,13 @@ export default async function TeamDetailPage({ params }: Props) {
             <AddMembers teamId={team.id} candidates={candidates.map(({ id, full_name, job_title, department }) => ({ id, full_name, job_title, department }))} />
             <EditTeam
               teamId={team.id}
-              team={{ name: team.name, description: team.description, lead_id: team.lead_id ? String(team.lead_id) : "" }}
+              team={{
+                name: team.name,
+                description: team.description,
+                lead_id: team.lead_id ? String(team.lead_id) : "",
+                entity_id: team.entity_id ? String(team.entity_id) : "",
+              }}
+              entities={listEntities().map((entity) => ({ id: String(entity.id), label: entity.name }))}
               leads={isAdmin ? people.map((person) => ({ id: String(person.id), label: `${person.full_name} · ${person.job_title}` })) : null}
             />
             <DeleteTeam teamId={team.id} name={team.name} />
