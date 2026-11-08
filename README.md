@@ -30,7 +30,11 @@ Checks: `npm run lint`, `npm run typecheck`, `npm run build`. Node 22.13 or newe
   Set `PORTAL_DB_PATH` to keep it somewhere else, for example on a persistent volume.
 - Passwords are hashed with scrypt. Sessions are random tokens kept in an HTTP-only cookie; only their hash is stored.
 - Sign-in is limited to 5 attempts per 15 minutes for each email and address.
-- Set `PORTAL_ALLOWED_EMAIL_DOMAINS` (see `.env.example`) to allow only company emails to sign up.
+- Set `PORTAL_ALLOWED_EMAIL_DOMAINS` (see `.env.example`) to allow only company emails to sign up. In production,
+  sign-up stays closed until it is set (or `PORTAL_ALLOW_OPEN_SIGNUP=true`), because the first account becomes admin.
+- Sign-in is also limited per account across all addresses. Set `PORTAL_TRUST_PROXY=true` only behind a reverse proxy
+  that overwrites `X-Forwarded-For`; otherwise every caller shares one rate-limit bucket.
+- Changing a password signs out every other session.
 - SQLite needs a writable disk, so host it on a server or container, not on a serverless platform.
 
 ## Roles

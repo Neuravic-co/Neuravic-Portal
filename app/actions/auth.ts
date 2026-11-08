@@ -25,13 +25,19 @@ async function clientKey() {
   return forwarded?.at(-1)?.trim() || list.get("x-real-ip") || "shared";
 }
 
-/** Optional allow-list, for example "neuravic.com". Empty means any address can sign up. */
-function emailDomainAllowed(email: string) {
+/**
+ * Who may create an account. Set PORTAL_ALLOWED_EMAIL_DOMAINS (for example "neuravic.com") to allow company
+ * addresses only. In production, sign-up stays closed until that is set, or until PORTAL_ALLOW_OPEN_SIGNUP=true says
+ * anyone may join; otherwise the first stranger to find a fresh deployment would become its admin.
+ */
+function signupPolicy(email: string): "ok" | "closed" | "domain" {
   const allowed = (process.env.PORTAL_ALLOWED_EMAIL_DOMAINS ?? "")
     .split(",")
     .map((domain) => domain.trim().toLowerCase())
     .filter(Boolean);
-  return allowed.length === 0 || allowed.includes(email.split("@")[1] ?? "");
+  if (allowed.length > 0) return allowed.includes(email.split("@")[1] ?? "") ? "ok" : "domain";
+  const open = process.env.NODE_ENV !== "production" || process.env.PORTAL_ALLOW_OPEN_SIGNUP === "true";
+  return open ? "ok" : "closed";
 }
 
 export async function signUp(_previous: FormState, form: FormData): Promise<FormState> {
@@ -47,8 +53,10 @@ export async function signUp(_previous: FormState, form: FormData): Promise<Form
 
   const fieldErrors: Record<string, string> = {};
   if (values.full_name.length < 2) fieldErrors.full_name = "Enter your full name.";
+  const policy = signupPolicy(values.email);
+  if (policy === "closed") return { error: "Sign-up is closed. Ask an administrator to open it.", values };
   if (!EMAIL_PATTERN.test(values.email)) fieldErrors.email = "Enter a valid work email.";
-  else if (!emailDomainAllowed(values.email)) fieldErrors.email = "Use your company email address.";
+  else if (policy === "domain") fieldErrors.email = "Use your company email address.";
   if (values.job_title.length < 2) fieldErrors.job_title = "Enter your job title.";
   if (!DEPARTMENTS.includes(values.department)) fieldErrors.department = "Choose a department.";
   if (!OFFICES.some((office) => office.id === values.office)) fieldErrors.office = "Choose an office.";
