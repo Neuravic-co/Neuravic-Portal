@@ -9,9 +9,17 @@ import { EMAIL_PATTERN, secret, text, type FormState } from "@/lib/form";
 import { DEPARTMENTS, OFFICES, PASSWORD_MIN } from "@/lib/profile";
 import { allowAttempt, clearAttempts } from "@/lib/rate-limit";
 
+/**
+ * Who is calling, for rate limiting. Forwarding headers are client-controlled unless a reverse proxy overwrites them,
+ * so they are only trusted when PORTAL_TRUST_PROXY=true. Otherwise every caller shares one bucket, which can never be
+ * dodged by sending a different header on each request.
+ */
 async function clientKey() {
+  if (process.env.PORTAL_TRUST_PROXY !== "true") return "shared";
   const list = await headers();
-  return list.get("x-forwarded-for")?.split(",")[0]?.trim() || list.get("x-real-ip") || "local";
+  const forwarded = list.get("x-forwarded-for")?.split(",");
+  // The last entry is the one our own proxy appended; earlier ones can be forged by the client.
+  return forwarded?.at(-1)?.trim() || list.get("x-real-ip") || "shared";
 }
 
 /** Optional allow-list, for example "neuravic.com". Empty means any address can sign up. */
