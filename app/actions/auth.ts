@@ -6,7 +6,8 @@ import { redirect } from "next/navigation";
 import { decoy, endSession, hashPassword, startSession, verifyPassword } from "@/lib/auth";
 import { db, type UserRow } from "@/lib/db";
 import { EMAIL_PATTERN, secret, text, type FormState } from "@/lib/form";
-import { DEPARTMENTS, OFFICES, PASSWORD_MIN } from "@/lib/profile";
+import { passwordProblem } from "@/lib/password-policy";
+import { DEPARTMENTS, OFFICES } from "@/lib/profile";
 import { allowAttempt, clearAttempts } from "@/lib/rate-limit";
 
 /** Failed or successful sign-in attempts allowed per account in 15 minutes, from all addresses together. */
@@ -60,7 +61,8 @@ export async function signUp(_previous: FormState, form: FormData): Promise<Form
   if (values.job_title.length < 2) fieldErrors.job_title = "Enter your job title.";
   if (!DEPARTMENTS.includes(values.department)) fieldErrors.department = "Choose a department.";
   if (!OFFICES.some((office) => office.id === values.office)) fieldErrors.office = "Choose an office.";
-  if (password.length < PASSWORD_MIN) fieldErrors.password = `Use at least ${PASSWORD_MIN} characters.`;
+  const problem = passwordProblem(password, { email: values.email, name: values.full_name });
+  if (problem) fieldErrors.password = problem;
   if (confirm !== password) fieldErrors.confirm = "The passwords do not match.";
   if (Object.keys(fieldErrors).length > 0) return { fieldErrors, values };
 

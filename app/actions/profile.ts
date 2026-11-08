@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { endOtherSessions, hashPassword, requireUser, verifyPassword } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { secret, text, type FormState } from "@/lib/form";
-import { DEPARTMENTS, OFFICES, PASSWORD_MIN } from "@/lib/profile";
+import { passwordProblem } from "@/lib/password-policy";
+import { DEPARTMENTS, OFFICES } from "@/lib/profile";
 
 const PHONE_PATTERN = /^[+()\d\s-]{6,20}$/;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -48,7 +49,9 @@ export async function changePassword(_previous: FormState, form: FormData): Prom
   const confirm = secret(form, "confirm");
 
   const fieldErrors: Record<string, string> = {};
-  if (next.length < PASSWORD_MIN) fieldErrors.password = `Use at least ${PASSWORD_MIN} characters.`;
+  const problem = passwordProblem(next, { email: user.email, name: user.full_name });
+  if (problem) fieldErrors.password = problem;
+  else if (next === current) fieldErrors.password = "Choose a password you have not used before.";
   if (confirm !== next) fieldErrors.confirm = "The passwords do not match.";
   if (Object.keys(fieldErrors).length > 0) return { fieldErrors };
 
