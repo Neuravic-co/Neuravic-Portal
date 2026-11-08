@@ -1,8 +1,11 @@
 import type { NextConfig } from "next";
 
-/** Baseline security headers, matching the main Neuravic site. */
+/**
+ * Baseline security headers, matching the main Neuravic site. The Content Security Policy is set per request in
+ * proxy.ts, because it carries a fresh nonce.
+ */
 const securityHeaders = [
-  { key: "Content-Security-Policy", value: "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" },
+  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },

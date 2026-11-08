@@ -44,3 +44,6 @@ next-env.d.ts
 
 # Local database
 /data/
+
+# Written by `next dev`; not part of the project
+/AGENTS.md
