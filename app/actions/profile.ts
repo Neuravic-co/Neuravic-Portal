@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { audit } from "@/lib/audit";
 import { endOtherSessions, hashPassword, requireUser, verifyPassword } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { secret, text, type FormState } from "@/lib/form";
@@ -63,5 +64,6 @@ export async function changePassword(_previous: FormState, form: FormData): Prom
   db().prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(await hashPassword(next), user.id);
   // A changed password must also end any session someone else may be holding.
   await endOtherSessions(user.id);
+  audit(user, "password.changed");
   return { success: "Your password is changed." };
 }

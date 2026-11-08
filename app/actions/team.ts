@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { audit } from "@/lib/audit";
 import { requireUser } from "@/lib/auth";
 import { db, type TeamRow } from "@/lib/db";
 import { text, type FormState } from "@/lib/form";
@@ -95,6 +96,7 @@ export async function deleteTeam(teamId: number) {
   const team = findTeam(teamId);
   if (!team || !canManageTeam(user, team)) return;
   db().prepare("DELETE FROM teams WHERE id = ?").run(teamId);
+  audit(user, "team.deleted", `team ${teamId} "${team.name}"`);
   refresh();
   redirect("/team");
 }
@@ -143,6 +145,7 @@ export async function setRole(personId: number, _previous: FormState, form: Form
   }
 
   database.prepare("UPDATE users SET role = ? WHERE id = ?").run(role, personId);
+  audit(user, "role.changed", `user ${personId}: ${person.role} -> ${role}`);
   revalidatePath("/", "layout");
   return { success: "Role updated." };
 }
@@ -181,6 +184,8 @@ export async function updateEntity(entityId: number, _previous: FormState, form:
 export async function deleteEntity(entityId: number) {
   const user = await requireUser();
   if (asRole(user.role) !== "admin") return;
+  const entity = db().prepare("SELECT name FROM entities WHERE id = ?").get(entityId) as { name: string } | undefined;
   db().prepare("DELETE FROM entities WHERE id = ?").run(entityId);
+  if (entity) audit(user, "entity.deleted", `entity ${entityId} "${entity.name}"`);
   refresh();
 }

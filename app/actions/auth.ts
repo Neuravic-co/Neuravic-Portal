@@ -3,6 +3,7 @@
 import { randomBytes } from "node:crypto";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { audit } from "@/lib/audit";
 import { decoy, endSession, hashPassword, startSession, verifyPassword } from "@/lib/auth";
 import { db, type UserRow } from "@/lib/db";
 import { EMAIL_PATTERN, secret, text, type FormState } from "@/lib/form";
@@ -85,7 +86,8 @@ export async function signUp(_previous: FormState, form: FormData): Promise<Form
   const id = Number(result.lastInsertRowid);
   database.prepare("UPDATE users SET employee_id = ? WHERE id = ?").run(`NV-${String(id).padStart(4, "0")}`, id);
   // The first account on a new portal becomes the admin, so someone can manage roles and teams.
-  database.prepare("UPDATE users SET role = 'admin' WHERE id = ? AND NOT EXISTS (SELECT 1 FROM users WHERE role = 'admin')").run(id);
+  const promoted = database.prepare("UPDATE users SET role = 'admin' WHERE id = ? AND NOT EXISTS (SELECT 1 FROM users WHERE role = 'admin')").run(id);
+  if (Number(promoted.changes) > 0) audit({ id, email: values.email }, "signup.admin", "first account became admin");
 
   await startSession(id);
   redirect("/pims?welcome=1");
@@ -105,6 +107,8 @@ export async function signIn(_previous: FormState, form: FormData): Promise<Form
   const key = `signin:${await clientKey()}:${email}`;
   const accountKey = `signin-account:${email}`;
   if (!allowAttempt(key, 5) || !allowAttempt(accountKey, ACCOUNT_ATTEMPTS)) {
+    // Once per email per window, so a flood of blocked attempts cannot flood the log as well.
+    if (allowAttempt(`audit:${email}`, 1)) audit(null, "signin.blocked", email);
     return { error: "Too many attempts. Wait 15 minutes and try again.", values };
   }
 

@@ -82,6 +82,14 @@ const SCHEMA = `
     PRIMARY KEY (team_id, user_id)
   );
   CREATE INDEX IF NOT EXISTS team_members_user ON team_members(user_id);
+  CREATE TABLE IF NOT EXISTS audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    actor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    actor_email TEXT NOT NULL DEFAULT '',
+    action TEXT NOT NULL,
+    detail TEXT NOT NULL DEFAULT ''
+  );
 `;
 
 /** Brings a database made by an earlier version of the portal up to date. */
