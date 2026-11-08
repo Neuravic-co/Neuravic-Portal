@@ -61,6 +61,13 @@ export async function endSession() {
   jar.delete(SESSION_COOKIE);
 }
 
+/** Signs a person out everywhere except the browser making this request, for example after a password change. */
+export async function endOtherSessions(userId: number) {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  const keep = token ? hashToken(token) : "";
+  db().prepare("DELETE FROM sessions WHERE user_id = ? AND token_hash != ?").run(userId, keep);
+}
+
 /** The signed-in user, or null. Cached for the length of one request. */
 export const currentUser = cache(async (): Promise<User | null> => {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
