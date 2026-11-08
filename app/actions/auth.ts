@@ -9,6 +9,9 @@ import { EMAIL_PATTERN, secret, text, type FormState } from "@/lib/form";
 import { DEPARTMENTS, OFFICES, PASSWORD_MIN } from "@/lib/profile";
 import { allowAttempt, clearAttempts } from "@/lib/rate-limit";
 
+/** Failed or successful sign-in attempts allowed per account in 15 minutes, from all addresses together. */
+const ACCOUNT_ATTEMPTS = 15;
+
 /**
  * Who is calling, for rate limiting. Forwarding headers are client-controlled unless a reverse proxy overwrites them,
  * so they are only trusted when PORTAL_TRUST_PROXY=true. Otherwise every caller shares one bucket, which can never be
@@ -87,8 +90,11 @@ export async function signIn(_previous: FormState, form: FormData): Promise<Form
     return { error: "Enter your email and password.", values };
   }
 
+  // Two limits: a tight one per caller and account, and a looser one per account alone, so guesses spread across many
+  // addresses still run out. Checked in this order so a blocked caller does not use up the account's allowance.
   const key = `signin:${await clientKey()}:${email}`;
-  if (!allowAttempt(key, 5)) {
+  const accountKey = `signin-account:${email}`;
+  if (!allowAttempt(key, 5) || !allowAttempt(accountKey, ACCOUNT_ATTEMPTS)) {
     return { error: "Too many attempts. Wait 15 minutes and try again.", values };
   }
 
@@ -97,6 +103,7 @@ export async function signIn(_previous: FormState, form: FormData): Promise<Form
   if (!user || !valid) return { error: "The email or password is not right.", values };
 
   clearAttempts(key);
+  clearAttempts(accountKey);
   await startSession(user.id);
   redirect("/");
 }
