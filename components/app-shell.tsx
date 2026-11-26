@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import { LogOut, Menu, X } from "lucide-react";
 import { signOut } from "@/app/actions/auth";
 import { BrandMark } from "@/components/brand-mark";
+import { CommandPalette } from "@/components/command-palette";
+import { ThemeToggle, type Theme } from "@/components/theme-toggle";
 import { HOME, MODULES, type NavItem } from "@/lib/nav";
 
 function isActive(pathname: string, href: string) {
@@ -36,7 +38,15 @@ function initials(name: string) {
     .join("");
 }
 
-export function AppShell({ children, user }: { children: React.ReactNode; user: { name: string; role: string } }) {
+export function AppShell({
+  children,
+  user,
+  theme,
+}: {
+  children: React.ReactNode;
+  user: { name: string; role: string };
+  theme: Theme;
+}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const close = () => setOpen(false);
@@ -77,6 +87,8 @@ export function AppShell({ children, user }: { children: React.ReactNode; user: 
           ))}
         </nav>
 
+        <CommandPalette />
+
         <div className="sidebar__foot">
           <Link className="sidebar__user" href="/pims" onClick={close}>
             <span className="avatar" aria-hidden="true">
@@ -87,6 +99,7 @@ export function AppShell({ children, user }: { children: React.ReactNode; user: 
               <span>{user.role}</span>
             </span>
           </Link>
+          <ThemeToggle initial={theme} />
           <form action={signOut}>
             <button className="sidebar__signout" type="submit" aria-label="Sign out" title="Sign out">
               <LogOut aria-hidden="true" />
