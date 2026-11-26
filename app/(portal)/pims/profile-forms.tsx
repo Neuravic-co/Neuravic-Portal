@@ -55,7 +55,7 @@ export function PasswordForm() {
       <FormAlert state={state} />
       <PasswordField label="Current password" name="current" autoComplete="current-password" state={state} />
       <div className="form__row">
-        <PasswordField label="New password" name="password" autoComplete="new-password" state={state} hint={`At least ${PASSWORD_MIN} characters.`} />
+        <PasswordField label="New password" name="password" autoComplete="new-password" state={state} hint={`At least ${PASSWORD_MIN} characters. Avoid common passwords and your own details.`} />
         <PasswordField label="Confirm new password" name="confirm" autoComplete="new-password" state={state} />
       </div>
       <div className="form__foot">

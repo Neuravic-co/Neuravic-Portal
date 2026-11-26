@@ -18,7 +18,7 @@ export function SignupForm() {
         <SelectField label="Department" name="department" state={state} options={DEPARTMENTS.map((item) => ({ id: item, label: item }))} />
         <SelectField label="Office" name="office" state={state} options={OFFICES} />
       </div>
-      <PasswordField label="Password" name="password" autoComplete="new-password" state={state} hint={`At least ${PASSWORD_MIN} characters.`} />
+      <PasswordField label="Password" name="password" autoComplete="new-password" state={state} hint={`At least ${PASSWORD_MIN} characters. Avoid common passwords and your own details.`} />
       <PasswordField label="Confirm password" name="confirm" autoComplete="new-password" state={state} />
       <SubmitButton pending={pending} wide>
         Create account

@@ -1,10 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { hashPassword, requireUser, verifyPassword } from "@/lib/auth";
+import { audit } from "@/lib/audit";
+import { endOtherSessions, hashPassword, requireUser, verifyPassword } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { secret, text, type FormState } from "@/lib/form";
-import { DEPARTMENTS, OFFICES, PASSWORD_MIN } from "@/lib/profile";
+import { passwordProblem } from "@/lib/password-policy";
+import { DEPARTMENTS, OFFICES } from "@/lib/profile";
+import { allowAttempt, clearAttempts } from "@/lib/rate-limit";
 
 const PHONE_PATTERN = /^[+()\d\s-]{6,20}$/;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -48,15 +51,25 @@ export async function changePassword(_previous: FormState, form: FormData): Prom
   const confirm = secret(form, "confirm");
 
   const fieldErrors: Record<string, string> = {};
-  if (next.length < PASSWORD_MIN) fieldErrors.password = `Use at least ${PASSWORD_MIN} characters.`;
+  const problem = passwordProblem(next, { email: user.email, name: user.full_name });
+  if (problem) fieldErrors.password = problem;
+  else if (next === current) fieldErrors.password = "Choose a password you have not used before.";
   if (confirm !== next) fieldErrors.confirm = "The passwords do not match.";
   if (Object.keys(fieldErrors).length > 0) return { fieldErrors };
 
+  // Someone holding a stolen session must not be able to guess the current password without limit.
+  if (!allowAttempt(`password-change:${user.id}`, 5)) {
+    return { error: "Too many attempts. Wait 15 minutes and try again." };
+  }
   const row = db().prepare("SELECT password_hash FROM users WHERE id = ?").get(user.id) as { password_hash: string };
   if (!(await verifyPassword(current, row.password_hash))) {
     return { fieldErrors: { current: "Your current password is not right." } };
   }
+  clearAttempts(`password-change:${user.id}`);
 
   db().prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(await hashPassword(next), user.id);
+  // A changed password must also end any session someone else may be holding.
+  await endOtherSessions(user.id);
+  audit(user, "password.changed");
   return { success: "Your password is changed." };
 }

@@ -1,31 +1,23 @@
 import "server-only";
-import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
-import { promisify } from "node:util";
+import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { db, type UserRow } from "@/lib/db";
+import { hashPassword } from "@/lib/password-hash";
 
-const scryptAsync = promisify(scrypt) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
+export { checkPassword, hashPassword, verifyPassword } from "@/lib/password-hash";
 
-export const SESSION_COOKIE = "nv_session";
+const PRODUCTION = process.env.NODE_ENV === "production";
+/** In production the `__Host-` prefix makes browsers refuse the cookie unless it is Secure, path "/" and has no Domain. */
+export const SESSION_COOKIE = PRODUCTION ? "__Host-nv_session" : "nv_session";
 const SESSION_DAYS = 14;
-const KEY_LENGTH = 64;
 
 export type User = Omit<UserRow, "password_hash">;
 
-export async function hashPassword(password: string) {
-  const salt = randomBytes(16);
-  const key = await scryptAsync(password, salt, KEY_LENGTH);
-  return `scrypt$${salt.toString("base64")}$${key.toString("base64")}`;
-}
-
-export async function verifyPassword(password: string, stored: string) {
-  const [scheme, salt, key] = stored.split("$");
-  if (scheme !== "scrypt" || !salt || !key) return false;
-  const expected = Buffer.from(key, "base64");
-  const actual = await scryptAsync(password, Buffer.from(salt, "base64"), expected.length);
-  return timingSafeEqual(actual, expected);
+/** Replaces a stored hash with one at today's cost. Called after a successful sign-in with an older hash. */
+export async function upgradeHash(userId: number, password: string) {
+  db().prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(await hashPassword(password), userId);
 }
 
 /** A fixed hash to compare against when the email is unknown, so both paths take the same time. */
@@ -48,7 +40,7 @@ export async function startSession(userId: number) {
   (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: PRODUCTION,
     path: "/",
     expires: new Date(expires),
   });
@@ -61,20 +53,27 @@ export async function endSession() {
   jar.delete(SESSION_COOKIE);
 }
 
+/** Signs a person out everywhere except the browser making this request, for example after a password change. */
+export async function endOtherSessions(userId: number) {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  const keep = token ? hashToken(token) : "";
+  db().prepare("DELETE FROM sessions WHERE user_id = ? AND token_hash != ?").run(userId, keep);
+}
+
 /** The signed-in user, or null. Cached for the length of one request. */
 export const currentUser = cache(async (): Promise<User | null> => {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
   const row = db()
     .prepare(
-      `SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id
+      `SELECT u.id, u.employee_id, u.full_name, u.email, u.job_title, u.department, u.office, u.phone, u.start_date,
+              u.bio, u.role, u.created_at, u.last_login_at
+       FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.token_hash = ? AND s.expires_at > ?`,
     )
-    .get(hashToken(token), Date.now()) as UserRow | undefined;
-  if (!row) return null;
-  const { password_hash: _hash, ...user } = row;
-  void _hash;
-  return user;
+    .get(hashToken(token), Date.now()) as User | undefined;
+  // node:sqlite rows have no prototype; copy so the user can be passed to client components safely.
+  return row ? { ...row } : null;
 });
 
 export async function requireUser() {
