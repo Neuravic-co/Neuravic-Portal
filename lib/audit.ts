@@ -1,5 +1,5 @@
 import "server-only";
-import { db } from "@/lib/db";
+import { db } from "./db.ts";
 
 export type AuditAction =
   | "signup.admin"

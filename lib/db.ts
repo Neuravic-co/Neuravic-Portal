@@ -1,5 +1,5 @@
 import "server-only";
-import { mkdirSync } from "node:fs";
+import { chmodSync, mkdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
@@ -103,6 +103,9 @@ function migrate(database: DatabaseSync) {
     database.exec("ALTER TABLE teams ADD COLUMN entity_id INTEGER REFERENCES entities(id) ON DELETE SET NULL");
   }
   database.exec("CREATE INDEX IF NOT EXISTS teams_entity ON teams(entity_id)");
+  database.exec("CREATE INDEX IF NOT EXISTS teams_lead ON teams(lead_id)");
+  database.exec("CREATE INDEX IF NOT EXISTS sessions_expiry ON sessions(expires_at)");
+  database.exec("CREATE INDEX IF NOT EXISTS audit_log_at ON audit_log(at)");
   // Someone has to be able to hand out roles: if there is no admin yet, the earliest account becomes one.
   database.exec(`
     UPDATE users SET role = 'admin'
@@ -117,12 +120,48 @@ export function db() {
   if (!globalForDb.portalDb) {
     const configured = process.env.PORTAL_DB_PATH;
     const file = configured ? resolve(/*turbopackIgnore: true*/ configured) : join(process.cwd(), "data", "portal.db");
-    mkdirSync(dirname(file), { recursive: true });
+    // The database holds password hashes, so keep it readable by the server's own user only.
+    mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
     const database = new DatabaseSync(file);
-    database.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;");
+    database.exec(`
+      PRAGMA journal_mode = WAL;
+      PRAGMA synchronous = NORMAL;
+      PRAGMA foreign_keys = ON;
+      PRAGMA busy_timeout = 5000;
+      PRAGMA trusted_schema = OFF;
+      PRAGMA secure_delete = ON;
+    `);
     database.exec(SCHEMA);
     migrate(database);
+    try {
+      chmodSync(file, 0o600);
+    } catch {
+      // Windows and some mounted volumes do not support POSIX modes; the folder is already git-ignored.
+    }
     globalForDb.portalDb = database;
   }
   return globalForDb.portalDb;
+}
+
+/** Runs `work` as one atomic unit: everything is saved together, or nothing is if it throws. */
+export function transaction<T>(work: () => T): T {
+  const database = db();
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    const result = work();
+    database.exec("COMMIT");
+    return result;
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+/** A cheap query that proves the database can be opened and read. Used by the health check. */
+export function databaseReady() {
+  try {
+    return db().prepare("SELECT 1 AS ok").get() !== undefined;
+  } catch {
+    return false;
+  }
 }

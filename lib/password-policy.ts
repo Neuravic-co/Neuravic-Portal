@@ -1,4 +1,4 @@
-import { PASSWORD_MIN } from "@/lib/profile";
+import { PASSWORD_MIN } from "./profile.ts";
 
 /** The passwords attackers try first. Compared after lower-casing and dropping trailing digits and symbols. */
 const COMMON = new Set([
@@ -16,7 +16,11 @@ const stripTail = (value: string) => value.toLowerCase().replace(/[\d\W_]+$/g, "
 /** True for things like "aaaaaaaaaa", "1234567890" or "abcdefghij". */
 function isPattern(password: string) {
   if (new Set(password).size <= 2) return true;
-  const codes = [...password.toLowerCase()].map((char) => char.charCodeAt(0));
+  // Runs along the digit row, the keyboard rows or the alphabet, forwards or backwards ("1234567890", "asdfghjkl").
+  const lower = password.toLowerCase();
+  const runs = ["12345678901234567890", "qwertyuiopasdfghjklzxcvbnm", "abcdefghijklmnopqrstuvwxyz"];
+  if (runs.some((run) => run.includes(lower) || [...run].reverse().join("").includes(lower))) return true;
+  const codes = [...lower].map((char) => char.charCodeAt(0));
   const step = codes[1] - codes[0];
   return Math.abs(step) === 1 && codes.every((code, index) => index === 0 || code - codes[index - 1] === step);
 }

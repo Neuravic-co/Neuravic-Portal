@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { audit } from "@/lib/audit";
 import { requireUser } from "@/lib/auth";
-import { db, type TeamRow } from "@/lib/db";
+import { db, transaction, type TeamRow } from "@/lib/db";
 import { text, type FormState } from "@/lib/form";
 import { asRole, canCreateTeams, canManageTeam, ROLES } from "@/lib/roles";
 
@@ -58,11 +58,22 @@ export async function createTeam(_previous: FormState, form: FormData): Promise<
   // Managers lead the teams they create, so they can go on managing them. Admins can pick anyone.
   const leadId = asRole(user.role) === "admin" ? (lead ?? user.id) : user.id;
   const database = db();
-  const result = database
-    .prepare("INSERT INTO teams (entity_id, name, description, lead_id, created_by) VALUES (?, ?, ?, ?, ?)")
-    .run(entity, values.name, values.description, leadId, user.id);
-  const teamId = Number(result.lastInsertRowid);
-  database.prepare("INSERT OR IGNORE INTO team_members (team_id, user_id) VALUES (?, ?)").run(teamId, leadId);
+  let teamId: number;
+  try {
+    teamId = transaction(() => {
+      const result = database
+        .prepare("INSERT INTO teams (entity_id, name, description, lead_id, created_by) VALUES (?, ?, ?, ?, ?)")
+        .run(entity, values.name, values.description, leadId, user.id);
+      const id = Number(result.lastInsertRowid);
+      database.prepare("INSERT OR IGNORE INTO team_members (team_id, user_id) VALUES (?, ?)").run(id, leadId);
+      return id;
+    });
+  } catch (error) {
+    if (error instanceof Error && /UNIQUE/i.test(error.message)) {
+      return { fieldErrors: { name: "A team with this name already exists." }, values };
+    }
+    throw error;
+  }
 
   refresh();
   // Teams added from the hierarchy stay on the hierarchy; elsewhere, go to the new team.

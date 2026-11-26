@@ -1,5 +1,5 @@
 import "server-only";
-import { db, type EntityRow, type TeamRow } from "@/lib/db";
+import { db, type EntityRow, type TeamRow } from "./db.ts";
 
 export type Person = {
   id: number;
@@ -48,14 +48,19 @@ export function listTeams(): TeamSummary[] {
     )
     .all();
   const teams = plain<Omit<TeamSummary, "preview">>(rows);
-  const preview = db().prepare(
-    `SELECT u.full_name FROM team_members m JOIN users u ON u.id = m.user_id
-     WHERE m.team_id = ? ORDER BY (u.id = ?) DESC, m.added_at LIMIT 5`,
-  );
-  return teams.map((team) => ({
-    ...team,
-    preview: (preview.all(team.id, team.lead_id ?? 0) as { full_name: string }[]).map((row) => row.full_name),
-  }));
+  // One query for every team's first five members (the lead first), instead of one query per team.
+  const ranked = db()
+    .prepare(
+      `SELECT team_id, full_name FROM (
+         SELECT m.team_id, u.full_name,
+                ROW_NUMBER() OVER (PARTITION BY m.team_id ORDER BY (u.id = t.lead_id) DESC, m.added_at) AS place
+         FROM team_members m JOIN users u ON u.id = m.user_id JOIN teams t ON t.id = m.team_id
+       ) WHERE place <= 5 ORDER BY team_id, place`,
+    )
+    .all() as { team_id: number; full_name: string }[];
+  const previews = new Map<number, string[]>();
+  for (const { team_id, full_name } of ranked) previews.set(team_id, [...(previews.get(team_id) ?? []), full_name]);
+  return teams.map((team) => ({ ...team, preview: previews.get(team.id) ?? [] }));
 }
 
 export function getTeam(id: number) {

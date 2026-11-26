@@ -4,8 +4,8 @@ import { randomBytes } from "node:crypto";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { audit } from "@/lib/audit";
-import { decoy, endSession, hashPassword, startSession, verifyPassword } from "@/lib/auth";
-import { db, type UserRow } from "@/lib/db";
+import { checkPassword, decoy, endSession, hashPassword, startSession, upgradeHash } from "@/lib/auth";
+import { db, transaction, type UserRow } from "@/lib/db";
 import { EMAIL_PATTERN, secret, text, type FormState } from "@/lib/form";
 import { passwordProblem } from "@/lib/password-policy";
 import { DEPARTMENTS, OFFICES } from "@/lib/profile";
@@ -77,17 +77,33 @@ export async function signUp(_previous: FormState, form: FormData): Promise<Form
   }
 
   const passwordHash = await hashPassword(password);
-  const result = database
-    .prepare(
-      `INSERT INTO users (employee_id, full_name, email, password_hash, job_title, department, office)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .run(`pending-${randomBytes(8).toString("hex")}`, values.full_name, values.email, passwordHash, values.job_title, values.department, values.office);
-  const id = Number(result.lastInsertRowid);
-  database.prepare("UPDATE users SET employee_id = ? WHERE id = ?").run(`NV-${String(id).padStart(4, "0")}`, id);
-  // The first account on a new portal becomes the admin, so someone can manage roles and teams.
-  const promoted = database.prepare("UPDATE users SET role = 'admin' WHERE id = ? AND NOT EXISTS (SELECT 1 FROM users WHERE role = 'admin')").run(id);
-  if (Number(promoted.changes) > 0) audit({ id, email: values.email }, "signup.admin", "first account became admin");
+  let id: number;
+  let becameAdmin = false;
+  try {
+    // One transaction, so a crash cannot leave a half-made account, and two sign-ups cannot both become the first admin.
+    ({ id, becameAdmin } = transaction(() => {
+      const result = database
+        .prepare(
+          `INSERT INTO users (employee_id, full_name, email, password_hash, job_title, department, office)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(`pending-${randomBytes(8).toString("hex")}`, values.full_name, values.email, passwordHash, values.job_title, values.department, values.office);
+      const newId = Number(result.lastInsertRowid);
+      database.prepare("UPDATE users SET employee_id = ? WHERE id = ?").run(`NV-${String(newId).padStart(4, "0")}`, newId);
+      // The first account on a new portal becomes the admin, so someone can manage roles and teams.
+      const promoted = database
+        .prepare("UPDATE users SET role = 'admin' WHERE id = ? AND NOT EXISTS (SELECT 1 FROM users WHERE role = 'admin')")
+        .run(newId);
+      return { id: newId, becameAdmin: Number(promoted.changes) > 0 };
+    }));
+  } catch (error) {
+    // Two sign-ups with the same email at the same moment: the second hits the UNIQUE constraint.
+    if (error instanceof Error && /UNIQUE/i.test(error.message)) {
+      return { fieldErrors: { email: "An account with this email already exists. Sign in instead." }, values };
+    }
+    throw error;
+  }
+  if (becameAdmin) audit({ id, email: values.email }, "signup.admin", "first account became admin");
 
   await startSession(id);
   redirect("/pims?welcome=1");
@@ -113,11 +129,13 @@ export async function signIn(_previous: FormState, form: FormData): Promise<Form
   }
 
   const user = db().prepare("SELECT id, password_hash FROM users WHERE email = ?").get(email) as Pick<UserRow, "id" | "password_hash"> | undefined;
-  const valid = await verifyPassword(password, user?.password_hash ?? (await decoy()));
+  const { valid, rehash } = await checkPassword(password, user?.password_hash ?? (await decoy()));
   if (!user || !valid) return { error: "The email or password is not right.", values };
 
   clearAttempts(key);
   clearAttempts(accountKey);
+  // Hashes made with older, cheaper settings are replaced now, while the real password is at hand.
+  if (rehash) await upgradeHash(user.id, password);
   await startSession(user.id);
   redirect("/");
 }
