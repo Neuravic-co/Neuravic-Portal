@@ -47,3 +47,31 @@ next-env.d.ts
 
 # Written by `next dev`; not part of the project
 /AGENTS.md
+
+# Secrets and keys: never commit these
+*.key
+*.crt
+*.p12
+*.pfx
+id_rsa*
+.npmrc
+secrets/
+
+# Databases and backups (they hold password hashes and personal data)
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.sql
+*.bak
+
+# Logs, editors and OS files
+*.log
+logs/
+.vscode/*
+!.vscode/extensions.json
+.idea/
+Thumbs.db
+desktop.ini
+.vercel/
