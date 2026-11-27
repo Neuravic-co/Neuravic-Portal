@@ -75,3 +75,8 @@ logs/
 Thumbs.db
 desktop.ini
 .vercel/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/

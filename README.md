@@ -22,7 +22,7 @@ npm install
 npm run dev        # http://localhost:5174
 ```
 
-Checks: `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`. Node 22.18 or newer is needed (built-in SQLite and TypeScript tests); `.nvmrc` pins 24.
+Checks: `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run test:e2e` (browser tests for sign-up, sign-in, themes and the command palette; run `npx playwright install chromium` once, and build first). Node 22.18 or newer is needed (built-in SQLite and TypeScript tests); `.nvmrc` pins 24.
 
 Press **Ctrl K** (or ⌘K) anywhere to jump to a page. The theme button in the sidebar switches between system, light and dark.
 
