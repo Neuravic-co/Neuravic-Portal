@@ -221,7 +221,7 @@ test("an account must confirm its email before it can sign in", async ({ page, r
   await page.context().clearCookies();
   const newcomer = { name: "Karim Nasser", email: `karim.${Date.now()}@neuravic.test` };
   await page.goto("/signup");
-  await fillSignUp(page, { ...newcomer, password: "copper-meadow-lantern-83" });
+  await fillSignUp(page, { ...newcomer, password: "copper-meadow-lantern-83", confirm: "copper-meadow-lantern-83" });
   await expect(page).toHaveURL(/\/login\?notice=check-email$/);
 
   // The right password is still refused until the address is confirmed.
