@@ -18,6 +18,7 @@ export type UserRow = {
   role: string;
   created_at: string;
   last_login_at: string | null;
+  email_verified_at: string | null;
 };
 
 export type EntityRow = {
@@ -52,7 +53,8 @@ const SCHEMA = `
     bio TEXT NOT NULL DEFAULT '',
     role TEXT NOT NULL DEFAULT 'member',
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    last_login_at TEXT
+    last_login_at TEXT,
+    email_verified_at TEXT
   );
   CREATE TABLE IF NOT EXISTS sessions (
     token_hash TEXT PRIMARY KEY,
@@ -82,6 +84,19 @@ const SCHEMA = `
     PRIMARY KEY (team_id, user_id)
   );
   CREATE INDEX IF NOT EXISTS team_members_user ON team_members(user_id);
+  CREATE TABLE IF NOT EXISTS email_tokens (
+    token_hash TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    purpose TEXT NOT NULL,
+    expires_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS email_tokens_user ON email_tokens(user_id, purpose);
+  CREATE TABLE IF NOT EXISTS rate_limits (
+    key TEXT NOT NULL,
+    at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS rate_limits_key ON rate_limits(key, at);
+  CREATE INDEX IF NOT EXISTS rate_limits_at ON rate_limits(at);
   CREATE TABLE IF NOT EXISTS audit_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
@@ -97,6 +112,11 @@ function migrate(database: DatabaseSync) {
   const columns = database.prepare("PRAGMA table_info(users)").all() as { name: string }[];
   if (!columns.some((column) => column.name === "role")) {
     database.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'member'");
+  }
+  if (!columns.some((column) => column.name === "email_verified_at")) {
+    database.exec("ALTER TABLE users ADD COLUMN email_verified_at TEXT");
+    // Accounts that existed before email verification was added are trusted as they are.
+    database.exec("UPDATE users SET email_verified_at = created_at");
   }
   const teamColumns = database.prepare("PRAGMA table_info(teams)").all() as { name: string }[];
   if (!teamColumns.some((column) => column.name === "entity_id")) {

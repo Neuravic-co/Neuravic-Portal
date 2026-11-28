@@ -1,0 +1,14 @@
+# A local test mail server for development: the portal sends its confirmation and password reset emails here instead
+# of to real inboxes. Start it with: docker compose -f docker-compose.dev.yml up -d
+# Read the mail at http://localhost:8025, and point the portal at it with SMTP_HOST=127.0.0.1 SMTP_PORT=1025 in .env.
+# Mailpit replaces MailHog, which is no longer maintained.
+services:
+  mailpit:
+    image: axllent/mailpit:v1.34.0@sha256:23a2ef85bc50853ab3093645d1d64679afd8887e89da5e48a88940c172591a4e
+    ports:
+      - "127.0.0.1:1025:1025" # SMTP
+      - "127.0.0.1:8025:8025" # web inbox and API
+    restart: unless-stopped
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true

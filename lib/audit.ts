@@ -4,6 +4,12 @@ import { db } from "./db.ts";
 export type AuditAction =
   | "signup.admin"
   | "signin.blocked"
+  | "signin.success"
+  | "signin.failed"
+  | "signup"
+  | "email.verified"
+  | "password.reset.requested"
+  | "password.reset"
   | "password.changed"
   | "role.changed"
   | "team.deleted"
