@@ -31,15 +31,34 @@ Press **Ctrl K** (or ⌘K) anywhere to jump to a page. The theme button in the s
 - Accounts and sessions are stored in SQLite (`node:sqlite`), by default in `data/portal.db`. The folder is git-ignored.
   Set `PORTAL_DB_PATH` to keep it somewhere else, for example on a persistent volume.
 - Passwords are hashed with scrypt. Sessions are random tokens kept in an HTTP-only cookie; only their hash is stored.
-- Sign-in is limited to 5 attempts per 15 minutes for each email and address.
+- Sign-in is limited to 5 attempts per 15 minutes for each email and caller, and 30 per account in total. A password reset lifts the account limit. The counters live in the database, so they survive restarts.
 - Set `PORTAL_ALLOWED_EMAIL_DOMAINS` (see `.env.example`) to allow only company emails to sign up. In production,
   sign-up stays closed until it is set (or `PORTAL_ALLOW_OPEN_SIGNUP=true`), because the first account becomes admin.
-- Sign-in is also limited per account across all addresses. Set `PORTAL_TRUST_PROXY=true` only behind a reverse proxy
-  that overwrites `X-Forwarded-For`; otherwise every caller shares one rate-limit bucket.
+- Set `PORTAL_TRUST_PROXY=true` only behind a reverse proxy that overwrites `X-Forwarded-For`. Without it, callers are
+  told apart by a fingerprint of their browser headers, so one person cannot use up everyone else's attempts.
+- Security activity is written to the audit log: sign-ups, successful and failed sign-ins, blocks, email
+  confirmations, password changes and resets, role changes and deletions.
 - Changing a password signs out every other session.
 - Passwords use scrypt (N=2^16, r=8, p=2) with the cost stored in each hash; older hashes are upgraded when their owner signs in. In production the session cookie is `__Host-` prefixed.
 - The database file and folder are created owner-only, and `GET /api/health` reports whether it can be read.
 - SQLite needs a writable disk, so host it on a server or container, not on a serverless platform.
+
+## Email
+
+Email is switched on by setting `SMTP_HOST` (see `.env.example`). With it on:
+
+- A new account must confirm its email address from a link before it can sign in, so a company domain in
+  `PORTAL_ALLOWED_EMAIL_DOMAINS` really proves the person owns that mailbox. Sign-up gives the same answer whether or not
+  an address is already registered; the real owner gets an email instead.
+- **Forgot your password?** on the sign-in page emails a one-hour, single-use link. Using it signs the account out everywhere.
+- Links are built from `PORTAL_BASE_URL`, never from request headers. Tokens are random and only their hash is stored.
+- In production, sign-up from an allowed domain stays closed until email is set up (or `PORTAL_ALLOW_UNVERIFIED_EMAIL=true`).
+  Accounts that existed before this feature count as confirmed.
+
+For development, `docker compose -f docker-compose.dev.yml up -d` starts [Mailpit](https://mailpit.axllent.org), a test
+mail server (it replaces MailHog, which is no longer maintained). Use `SMTP_HOST=127.0.0.1 SMTP_PORT=1025` and read mail
+at http://localhost:8025. CI runs Mailpit too, and the browser tests read the confirmation and reset emails from it.
+For production use a provider such as Resend, Postmark or Amazon SES with `SMTP_REQUIRE_TLS=true`.
 
 ## Roles
 

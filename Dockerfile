@@ -1,20 +1,20 @@
 # syntax=docker/dockerfile:1
 # Node 24 includes the built-in SQLite (node:sqlite) the portal stores its data in.
-ARG NODE_VERSION=24-alpine
+# Pinned by digest so a changed or tampered tag cannot alter the build; Dependabot proposes digest updates.
 
-FROM node:${NODE_VERSION} AS deps
+FROM node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci --ignore-scripts
 
-FROM node:${NODE_VERSION} AS build
+FROM node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 AS build
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
 
-FROM node:${NODE_VERSION} AS run
+FROM node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 AS run
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
